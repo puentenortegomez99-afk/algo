@@ -1,15 +1,48 @@
 -- escolta.lua
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
--- Script Maestro Oficial: Combate, Autofollow por getClosestPlayer(), Owners por Texto y Autorecarga
+-- Script Maestro: API Oficial, Owners Persistentes, Autorecarga y Doble Control (Consola y Chat)
 
 local android = _G.android
 local PAUSA = 0.5
+local ARCHIVO_OWNERS = "owners.txt"
 
--- Lista de owners autorizados
+-- Lista inicial de owners (con chapelmussel0 por defecto)
 local owners = {
     ["chapelmussel0"] = true
 }
 
+-- 1. SISTEMA DE PERSISTENCIA DE OWNERS
+local function cargarOwners()
+    if fs.exists(ARCHIVO_OWNERS) then
+        local file = io.open(ARCHIVO_OWNERS, "r")
+        if file then
+            local contenido = file:read("*a")
+            file:close()
+            for nombre in string.gmatch(contenido, "[^\r\n]+") do
+                local limpio = string.gsub(nombre, "^%s*(.-)%s*$", "%1")
+                if limpio ~= "" then
+                    owners[string.lower(limpio)] = true
+                end
+            end
+            print(">> Owners cargados desde disco correctamente.")
+        end
+    end
+end
+
+local function guardarOwners()
+    local file = io.open(ARCHIVO_OWNERS, "w")
+    if file then
+        for nombre, _ in pairs(owners) do
+            file:write(nombre .. "\n")
+        end
+        file:close()
+        print(">> Lista de owners guardada en disco de forma permanente.")
+    end
+end
+
+cargarOwners()
+
+local objetivoNombre = "chapelmussel0"
 local modoActual = "seguir" -- "seguir", "esperar"
 local COMBUSTIBLE_MINIMO = 200
 
@@ -24,14 +57,14 @@ local function esperarTarea()
     end
 end
 
--- 1. AUTORECARGA AUTOMATICA CON REDSTONE (Basado en refuel() y fuelLevel())
+-- 2. SISTEMA DE AUTORECARGA CON REDSTONE (API Oficial)
 local function comprobarYRecargar()
     local combustibleActual = android.fuelLevel()
     if combustibleActual and combustibleActual >= COMBUSTIBLE_MINIMO then
         return true
     end
 
-    print(">> Combustible bajo. Buscando redstone...")
+    print(">> Combustible bajo (" .. tostring(combustibleActual) .. "). Buscando redstone...")
     local recargaExitosa = false
 
     for i = 0, 8 do
@@ -40,17 +73,22 @@ local function comprobarYRecargar()
             pcall(android.refuel)
             local nuevoCombustible = android.fuelLevel()
             if nuevoCombustible and nuevoCombustible > combustibleActual then
-                print(">> ¡Recarga exitosa desde el slot " .. i .. "!")
+                print(">> ¡Recarga exitosa desde el slot " .. i .. "! Combustible: " .. tostring(nuevoCombustible))
                 recargaExitosa = true
                 break
             end
         end
     end
 
-    return recargaExitosa
+    if not recargaExitosa then
+        print(">> ¡ADVERTENCIA! No hay redstone disponible en los slots 0-8.")
+        return false
+    end
+
+    return true
 end
 
--- 2. SISTEMA DE COMBATE DEFENSIVO
+-- 3. SISTEMA DE COMBATE DEFENSIVO
 local function verificarCombate()
     for i = 0, 8 do
         local ok, info = pcall(android.getSlotInfo, i)
@@ -61,7 +99,7 @@ local function verificarCombate()
     end
 end
 
--- 3. SEGUIMIENTO OFICIAL USANDO getClosestPlayer()
+-- 4. SEGUIMIENTO USANDO getClosestPlayer() OFICIAL
 local function seguirDueño()
     local jugador = android.getClosestPlayer()
     if jugador and jugador.name and owners[string.lower(jugador.name)] then
@@ -78,58 +116,85 @@ local function seguirDueño()
     end
 end
 
--- 4. ESCUCHA DE EVENTOS DE CHAT OFICIALES (onChatMessage)
+-- 5. PROCESADOR UNIFICADO DE COMANDOS (Consola local y Chat)
+local function procesarComando(texto)
+    local msgLower = string.lower(texto)
+    
+    if string.find(msgLower, "seguir ") then
+        objetivoNombre = string.sub(texto, 8)
+        objetivoNombre = string.gsub(objetivoNombre, "^%s*(.-)%s*$", "%1")
+        modoActual = "seguir"
+        pcall(android.changeFace, "happy")
+        print(">> Objetivo de seguimiento cambiado a: " .. objetivoNombre)
+        
+    elseif string.find(msgLower, "addowner ") then
+        local nuevoOwner = string.sub(texto, 10)
+        nuevoOwner = string.gsub(nuevoOwner, "^%s*(.-)%s*$", "%1")
+        if nuevoOwner ~= "" then
+            owners[string.lower(nuevoOwner)] = true
+            guardarOwners() -- Guarda permanentemente en owners.txt
+            pcall(android.changeFace, "happy")
+            print(">> ¡Nuevo owner autorizado añadido y guardado: " .. nuevoOwner)
+        end
+        
+    elseif msgLower == "parar" or msgLower == "para" or msgLower == "stay" then
+        modoActual = "esperar"
+        pcall(android.changeFace, "annoyed")
+        print(">> Androide puesto en espera.")
+        
+    elseif msgLower == "reanudar" or msgLower == "seguir" or msgLower == "ven" or msgLower == "follow" then
+        modoActual = "seguir"
+        pcall(android.changeFace, "happy")
+        print(">> Seguimiento reanudado.")
+    end
+end
+
+-- Hilo para escuchar el chat oficial del mod (onChatMessage)
 local function escucharChat()
     while true do
         local event, message, senderName, senderUUID = os.pullEvent("onChatMessage")
         if message and senderName then
-            local msgLower = string.lower(message)
             local senderLower = string.lower(senderName)
-
-            -- Verificar si quien manda el mensaje es un owner autorizado
+            -- Solo acepta comandos si el emisor es un owner registrado
             if owners[senderLower] then
-                if msgLower == "ven" or msgLower == "follow" or msgLower == "seguir" then
-                    modoActual = "seguir"
-                    android.changeFace("happy")
-                    print(">> Modo seguimiento activado por " .. senderName)
-                    
-                elseif msgLower == "para" or msgLower == "stay" or msgLower == "parar" then
-                    modoActual = "esperar"
-                    android.changeFace("annoyed")
-                    print(">> Androide detenido por " .. senderName)
-                    
-                elseif string.find(msgLower, "addowner ") then
-                    local nuevoOwner = string.sub(message, 10)
-                    owners[string.lower(nuevoOwner)] = true
-                    android.changeFace("happy")
-                    print(">> ¡Nuevo owner añadido al sistema: " .. nuevoOwner)
-                end
+                print("[CHAT] " .. senderName .. ": " .. message)
+                procesarComando(message)
             end
         end
     end
 end
 
--- 5. BUCLE PRINCIPAL
+-- Hilo para leer comandos desde la consola local del androide
+local function leerConsola()
+    while true do
+        local linea = io.read()
+        if linea then
+            print("[CONSOLA]: " .. linea)
+            procesarComando(linea)
+        end
+    end
+end
+
+-- 6. BUCLE PRINCIPAL MULTITAREA
 local function main()
     print("========================================")
-    print("   ANDROIDE TACTICO API OFICIAL ACTIVO  ")
+    print("   ANDROIDE TACTICO MAESTRO ACTIVO      ")
     print("========================================")
     print("Owner por defecto: chapelmussel0")
-    print("Escuchando chat y comandos locales...")
+    print("Comandos: seguir [nombre], addowner [nombre], parar, reanudar")
+    print("----------------------------------------")
 
-    parallel.waitForAll(escucharChat, function()
+    -- Ejecucion paralela: Chat oficial + Consola local + Rutinas del androide
+    parallel.waitForAll(escucharChat, leerConsola, function()
         while true do
-            -- Comprobar combustible antes de actuar
             if not comprobarYRecargar() then
                 sleep(5)
             else
                 verificarCombate()
-
                 if modoActual == "seguir" then
                     seguirDueño()
                 end
             end
-
             sleep(0.5)
         end
     end)
@@ -137,5 +202,5 @@ end
 
 local ok, err = pcall(main)
 if not ok then
-    print("ERROR FATAL: " .. tostring(err))
+    print("ERROR FATAL EN SCRIPT: " .. tostring(err))
 end
