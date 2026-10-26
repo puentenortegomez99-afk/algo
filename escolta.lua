@@ -1,10 +1,11 @@
 -- escolta.lua
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
+-- Androide de Combate, Escolta, Autofollow y Control de Vehiculos
 
 local android = _G.android
 
 local PAUSA = 0.5
-local modoActual = "esperar"
+local modoActual = "esperar" -- "seguir", "escolta", "vehiculo", "esperar"
 local objetivoNombre = nil
 
 local function esperarTarea()
@@ -18,6 +19,7 @@ local function esperarTarea()
     end
 end
 
+-- 1. Sistema de combate y equipamiento defensivo
 local function verificarCombate()
     for i = 0, 8 do
         local ok, info = pcall(android.getSlotInfo, i)
@@ -28,6 +30,7 @@ local function verificarCombate()
     end
 end
 
+-- 2. Sistema de seguimiento automatico al jugador (Autofollow)
 local function seguirJugador(nombreJugador)
     local jugador = android.getPlayer(nombreJugador)
     if jugador and jugador.posX then
@@ -39,33 +42,72 @@ local function seguirJugador(nombreJugador)
     end
 end
 
+-- 3. Gestion de vehiculos (Immersive Aircraft / Man of Many Planes)
 local function gestionarVehiculo()
     local vehiculos = android.getEntities("vehicle") or android.getEntities("plane")
     if vehiculos and #vehiculos > 0 then
         local v = vehiculos[1]
         pcall(android.moveTo, math.floor(v.x), math.floor(v.y), math.floor(v.z))
         pcall(android.useBlock, math.floor(v.x), math.floor(v.y), math.floor(v.z))
-        print("Intentando embarcar no vehiculo...")
+        print("Intentando embarcar en el vehiculo...")
     end
 end
 
+-- 4. Bucle principal de control y comandos
 local function main()
     print("=== ANDROIDE TACTICO INICIADO ===")
-    print("Usa no chat: 'ven', 'sube', 'escolta' ou 'para'.")
+    print("Comandos de chat disponibles:")
+    print(" - 'ven' o 'follow': Te sigue.")
+    print(" - 'escolta': Modo escolta defensiva.")
+    print(" - 'sube' o 'mount': Entra al avion/vehiculo.")
+    print(" - 'para' o 'stay': Se detiene.")
 
-    while true do
-        verificarCombate()
-
-        if modoActual == "seguir" and objetivoNombre then
-            seguirJugador(objetivoNombre)
-        elseif modoActual == "escolta" and objetivoNombre then
-            seguirJugador(objetivoNombre)
-        elseif modoActual == "vehiculo" then
-            gestionarVehiculo()
+    -- Hilo para escuchar el chat de forma simultanea
+    local function escucharChat()
+        while true do
+            local event, player, message = os.pullEvent("chat")
+            if event == "chat" and message then
+                message = string.lower(message)
+                
+                if string.find(message, "ven") or string.find(message, "follow") then
+                    objetivoNombre = player
+                    modoActual = "seguir"
+                    print("Modo Autofollow activado para: " .. player)
+                    
+                elseif string.find(message, "sube") or string.find(message, "mount") then
+                    modoActual = "vehiculo"
+                    print("Modo Automount en avion activado.")
+                    
+                elseif string.find(message, "para") or string.find(message, "stay") then
+                    modoActual = "esperar"
+                    objetivoNombre = nil
+                    print("Androide detenido en posicion de espera.")
+                    
+                elseif string.find(message, "escolta") then
+                    objetivoNombre = player
+                    modoActual = "escolta"
+                    print("Modo Escolta defensiva activado para: " .. player)
+                end
+            end
         end
-
-        sleep(0.5)
     end
+
+    -- Lanzamos la escucha de chat en paralelo para que no bloquee el movimiento
+    parallel.waitForAll(escucharChat, function()
+        while true do
+            verificarCombate()
+
+            if modoActual == "seguir" and objetivoNombre then
+                seguirJugador(objetivoNombre)
+            elseif modoActual == "escolta" and objetivoNombre then
+                seguirJugador(objetivoNombre)
+            elseif modoActual == "vehiculo" then
+                gestionarVehiculo()
+            end
+
+            sleep(0.5)
+        end
+    end)
 end
 
 local ok, err = pcall(main)
