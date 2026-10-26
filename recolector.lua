@@ -2,7 +2,7 @@
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
 
 local android = _G.android
-local PAUSA = 1.0
+local PAUSA = 2.0
 
 local function esperarTarea()
     sleep(PAUSA)
@@ -15,7 +15,7 @@ local function esperarTarea()
     end
 end
 
--- Depositar inventario en el cofre más cercano
+-- Función para depositar los ítems recolectados en el cofre cercano
 local function depositarLoot()
     local cofres = android.getBlocksOfType("chest")
     if cofres and #cofres > 0 then
@@ -32,13 +32,7 @@ end
 print("=== RECOLECTOR INICIADO ===")
 
 while true do
-    -- Como método alternativo seguro, revisamos el área o usamos comandos de succión si están disponibles,
-    -- o barremos los bloques de items caídos si la API lo soporta.
-    -- Si tu versión tiene una función específica de aspirado, la usaremos aquí:
-    local ok, res = pcall(android.suction) -- O la función de recolección de zona de tu versión
-    
-    -- Si no existe suction, el androide se mantiene a la escucha y vacía al cofre cercano
+    -- El androide revisa y vacía su inventario periódicamente en el cofre
     depositarLoot()
-    
     sleep(3)
 end
