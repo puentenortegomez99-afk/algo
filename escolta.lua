@@ -1,6 +1,3 @@
--- escolta.lua
--- CC:Androids 1.3.0 | Minecraft 1.20.1
-
 local android = _G.android
 local PAUSA = 0.5
 local modoActual = "seguir"
@@ -27,7 +24,6 @@ local function verificarCombate()
     end
 end
 
--- Función segura para seguir al objetivo buscando en las entidades del entorno
 local function seguirObjetivoSeguro(nombre)
     local ok, entidades = pcall(function() return android.getEntities() end)
     if ok and type(entidades) == "table" then
@@ -58,7 +54,7 @@ end
 
 local function main()
     print("=== ANDROIDE TACTICO ACTIVO ===")
-    print("Buscando y siguiendo a: " .. objetivoNombre)
+    print("Siguiendo a: " .. objetivoNombre)
 
     local function leerConsola()
         while true do
@@ -67,7 +63,7 @@ local function main()
                 linea = string.lower(linea)
                 if string.find(linea, "seguir ") then
                     objetivoNombre = string.sub(linea, 8)
-                    print(">> Nuevo objetivo: " .. objetivoNombre)
+                    print(">> Objetivo cambiado a: " .. objetivoNombre)
                 elseif linea == "parar" or linea == "para" then
                     modoActual = "esperar"
                     print(">> Androide detenido.")
