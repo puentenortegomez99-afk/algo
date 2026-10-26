@@ -1,20 +1,18 @@
 -- escolta.lua
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
--- Script Maestro: Combate, Autofollow Inteligente, Vehiculos, Owners Dinámicos y Autorecarga
+-- Script Maestro Oficial: Combate, Autofollow por getClosestPlayer(), Owners por Texto y Autorecarga
 
 local android = _G.android
 local PAUSA = 0.5
 
--- Lista de owners permitidos (con chapelmussel0 por defecto)
+-- Lista de owners autorizados
 local owners = {
     ["chapelmussel0"] = true
 }
 
-local objetivoNombre = "chapelmussel0"
-local modoActual = "seguir" -- Modos: "seguir", "vehiculo", "esperar"
+local modoActual = "seguir" -- "seguir", "esperar"
 local COMBUSTIBLE_MINIMO = 200
 
--- Funcion auxiliar para esperar tareas del androide
 local function esperarTarea()
     sleep(PAUSA)
     local inicio = os.clock()
@@ -26,38 +24,33 @@ local function esperarTarea()
     end
 end
 
--- 1. SISTEMA DE AUTORECARGA DE COMBUSTIBLE CON REDSTONE
+-- 1. AUTORECARGA AUTOMATICA CON REDSTONE (Basado en refuel() y fuelLevel())
 local function comprobarYRecargar()
     local combustibleActual = android.fuelLevel()
     if combustibleActual and combustibleActual >= COMBUSTIBLE_MINIMO then
         return true
     end
 
-    print(">> Combustible bajo (" .. tostring(combustibleActual) .. "). Buscando redstone...")
-
+    print(">> Combustible bajo. Buscando redstone...")
     local recargaExitosa = false
+
     for i = 0, 8 do
         local okEquip = pcall(android.equipSlot, i)
         if okEquip then
             pcall(android.refuel)
             local nuevoCombustible = android.fuelLevel()
             if nuevoCombustible and nuevoCombustible > combustibleActual then
-                print(">> ¡Recarga exitosa desde el slot " .. i .. "! Combustible: " .. tostring(nuevoCombustible))
+                print(">> ¡Recarga exitosa desde el slot " .. i .. "!")
                 recargaExitosa = true
                 break
             end
         end
     end
 
-    if not recargaExitosa then
-        print(">> ¡ADVERTENCIA! No hay redstone disponible para recargar.")
-        return false
-    end
-
-    return true
+    return recargaExitosa
 end
 
--- 2. SISTEMA DE COMBATE DEFENSIVO AVANZADO
+-- 2. SISTEMA DE COMBATE DEFENSIVO
 local function verificarCombate()
     for i = 0, 8 do
         local ok, info = pcall(android.getSlotInfo, i)
@@ -68,102 +61,72 @@ local function verificarCombate()
     end
 end
 
--- 3. SISTEMA DE SEGUIMIENTO SEGURO POR ENTIDADES (Follow)
-local function seguirObjetivoSeguro()
-    local ok, entidades = pcall(function() return android.getEntities() end)
-    if ok and type(entidades) == "table" then
-        for _, ent in ipairs(entidades) do
-            if ent and (ent.name == objetivoNombre or ent.type == "player" or ent.id == objetivoNombre) and ent.x then
-                local selfPos = android.getSelf()
-                if selfPos and selfPos.posX then
-                    local distancia = math.abs(ent.x - selfPos.posX) + math.abs(ent.z - selfPos.posZ)
-                    if distancia > 2 then
-                        pcall(android.moveTo, math.floor(ent.x), math.floor(ent.y), math.floor(ent.z))
-                        esperarTarea()
-                    end
+-- 3. SEGUIMIENTO OFICIAL USANDO getClosestPlayer()
+local function seguirDueño()
+    local jugador = android.getClosestPlayer()
+    if jugador and jugador.name and owners[string.lower(jugador.name)] then
+        if jugador.posX and jugador.posZ then
+            local selfPos = android.getSelf()
+            if selfPos and selfPos.posX then
+                local distancia = math.abs(jugador.posX - selfPos.posX) + math.abs(jugador.posZ - selfPos.posZ)
+                if distancia > 2 then
+                    pcall(android.moveTo, math.floor(jugador.posX), math.floor(jugador.posY), math.floor(jugador.posZ))
+                    esperarTarea()
                 end
-                return
             end
         end
     end
 end
 
--- 4. GESTION DE VEHICULOS (Immersive Aircraft / Man of Many Planes)
-local function gestionarVehiculo()
-    local ok, vehiculos = pcall(function() return android.getEntities("vehicle") or android.getEntities("plane") end)
-    if ok and vehiculos and #vehiculos > 0 then
-        local v = vehiculos[1]
-        pcall(android.moveTo, math.floor(v.x), math.floor(v.y), math.floor(v.z))
-        pcall(android.useBlock, math.floor(v.x), math.floor(v.y), math.floor(v.z))
-        print(">> Intentando embarcar en el vehiculo...")
-    else
-        print(">> No hay vehiculos cercanos detectados.")
+-- 4. ESCUCHA DE EVENTOS DE CHAT OFICIALES (onChatMessage)
+local function escucharChat()
+    while true do
+        local event, message, senderName, senderUUID = os.pullEvent("onChatMessage")
+        if message and senderName then
+            local msgLower = string.lower(message)
+            local senderLower = string.lower(senderName)
+
+            -- Verificar si quien manda el mensaje es un owner autorizado
+            if owners[senderLower] then
+                if msgLower == "ven" or msgLower == "follow" or msgLower == "seguir" then
+                    modoActual = "seguir"
+                    android.changeFace("happy")
+                    print(">> Modo seguimiento activado por " .. senderName)
+                    
+                elseif msgLower == "para" or msgLower == "stay" or msgLower == "parar" then
+                    modoActual = "esperar"
+                    android.changeFace("annoyed")
+                    print(">> Androide detenido por " .. senderName)
+                    
+                elseif string.find(msgLower, "addowner ") then
+                    local nuevoOwner = string.sub(message, 10)
+                    owners[string.lower(nuevoOwner)] = true
+                    android.changeFace("happy")
+                    print(">> ¡Nuevo owner añadido al sistema: " .. nuevoOwner)
+                end
+            end
+        end
     end
 end
 
--- 5. BUCLE PRINCIPAL Y CONSOLA DE COMANDOS INTERACTIVA
+-- 5. BUCLE PRINCIPAL
 local function main()
     print("========================================")
-    print("   ANDROIDE TACTICO INTELIGENTE ACTIVO  ")
+    print("   ANDROIDE TACTICO API OFICIAL ACTIVO  ")
     print("========================================")
-    print("Owner activo por defecto: " .. objetivoNombre)
-    print("Comandos disponibles en esta consola:")
-    print(" - seguir [nombre]   -> Cambia de objetivo.")
-    print(" - addowner [nombre] -> Añade un nuevo owner autorizado.")
-    print(" - vehiculo          -> Sube a un avion/transporte.")
-    print(" - parar / para      -> Detiene al androide.")
-    print(" - reanudar          -> Vuelve a seguir al objetivo.")
-    print("----------------------------------------")
+    print("Owner por defecto: chapelmussel0")
+    print("Escuchando chat y comandos locales...")
 
-    -- Hilo independiente para leer la consola local
-    local function leerConsola()
+    parallel.waitForAll(escucharChat, function()
         while true do
-            local linea = io.read()
-            if linea then
-                linea = string.lower(linea)
-                
-                if string.find(linea, "seguir ") then
-                    objetivoNombre = string.sub(linea, 8)
-                    modoActual = "seguir"
-                    print(">> Nuevo objetivo asignado: " + objetivoNombre)
-                    
-                elseif string.find(linea, "addowner ") then
-                    local nuevoOwner = string.sub(linea, 10)
-                    owners[nuevoOwner] = true
-                    print(">> ¡Nuevo owner autorizado añadido: " + nuevoOwner)
-                    
-                elseif linea == "vehiculo" or linea == "sube" then
-                    modoActual = "vehiculo"
-                    print(">> Modo vehiculo activado.")
-                    
-                elseif linea == "parar" or linea == "para" then
-                    modoActual = "esperar"
-                    print(">> Androide puesto en espera.")
-                    
-                elseif linea == "reanudar" then
-                    modoActual = "seguir"
-                    print(">> Seguimiento reanudado.")
-                else
-                    print(">> Comando no reconocido.")
-                end
-            end
-        end
-    end
-
-    -- Ejecucion paralela multitarea
-    parallel.waitForAll(leerConsola, function()
-        while true do
-            -- Gestion previa de combustible
+            -- Comprobar combustible antes de actuar
             if not comprobarYRecargar() then
                 sleep(5)
             else
-                -- Revision de combate y acciones
                 verificarCombate()
 
                 if modoActual == "seguir" then
-                    seguirObjetivoSeguro()
-                elseif modoActual == "vehiculo" then
-                    gestionarVehiculo()
+                    seguirDueño()
                 end
             end
 
@@ -172,8 +135,7 @@ local function main()
     end)
 end
 
--- Lanzador protegido contra fallos
 local ok, err = pcall(main)
 if not ok then
-    print("ERROR FATAL EN SCRIPT: " .. tostring(err))
+    print("ERROR FATAL: " .. tostring(err))
 end
