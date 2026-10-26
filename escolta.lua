@@ -1,6 +1,4 @@
 -- escolta.lua
--- CC:Androids 1.3.0 | Minecraft 1.20.1
-
 local android = _G.android
 local PAUSA = 0.5
 local ARCHIVO_OWNERS = "owners.txt"
@@ -144,8 +142,7 @@ local function leerConsola()
 end
 
 local function main()
-    print("=== ANDROIDE TACTICO MAESTRO ACTIVO ===")
-    print("Owner base: chapelmussel0")
+    print("=== ANDROIDE TACTICO ACTIVO ===")
     parallel.waitForAll(escucharChat, leerConsola, function()
         while true do
             if not comprobarYRecargar() then
