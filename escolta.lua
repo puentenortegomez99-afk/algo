@@ -1,7 +1,10 @@
+-- escolta.lua
+-- CC:Androids 1.3.0 | Minecraft 1.20.1
+
 local android = _G.android
 local PAUSA = 0.5
 local modoActual = "seguir"
-local objetivoActual = "chapelmussel0"
+local objetivoNombre = "chapelmussel0"
 
 local function esperarTarea()
     sleep(PAUSA)
@@ -24,25 +27,19 @@ local function verificarCombate()
     end
 end
 
-local function seguirObjetivo(nombre)
-    local jugador = android.getPlayer(nombre)
-    if jugador and jugador.posX then
-        local distancia = math.abs(jugador.posX - android.getSelf().posX) + math.abs(jugador.posZ - android.getSelf().posZ)
-        if distancia > 2 then
-            pcall(android.moveTo, math.floor(jugador.posX), math.floor(jugador.posY), math.floor(jugador.posZ))
-            esperarTarea()
-        end
-        return
-    end
-
+-- Función segura para seguir al objetivo buscando en las entidades del entorno
+local function seguirObjetivoSeguro(nombre)
     local ok, entidades = pcall(function() return android.getEntities() end)
-    if ok and entidades then
+    if ok and type(entidades) == "table" then
         for _, ent in ipairs(entidades) do
-            if ent and (ent.name == nombre or ent.type == nombre or ent.id == nombre) and ent.x then
-                local distancia = math.abs(ent.x - android.getSelf().posX) + math.abs(ent.z - android.getSelf().posZ)
-                if distancia > 2 then
-                    pcall(android.moveTo, math.floor(ent.x), math.floor(ent.y), math.floor(ent.z))
-                    esperarTarea()
+            if ent and (ent.name == nombre or ent.type == "player" or ent.id == nombre) and ent.x then
+                local selfPos = android.getSelf()
+                if selfPos and selfPos.posX then
+                    local distancia = math.abs(ent.x - selfPos.posX) + math.abs(ent.z - selfPos.posZ)
+                    if distancia > 2 then
+                        pcall(android.moveTo, math.floor(ent.x), math.floor(ent.y), math.floor(ent.z))
+                        esperarTarea()
+                    end
                 end
                 return
             end
@@ -61,7 +58,7 @@ end
 
 local function main()
     print("=== ANDROIDE TACTICO ACTIVO ===")
-    print("Siguiendo por defecto a: chapelmussel0")
+    print("Buscando y siguiendo a: " .. objetivoNombre)
 
     local function leerConsola()
         while true do
@@ -69,12 +66,14 @@ local function main()
             if linea then
                 linea = string.lower(linea)
                 if string.find(linea, "seguir ") then
-                    objetivoActual = string.sub(linea, 8)
-                    modoActual = "seguir"
-                    print(">> Siguiendo a: " + objetivoActual)
+                    objetivoNombre = string.sub(linea, 8)
+                    print(">> Nuevo objetivo: " .. objetivoNombre)
                 elseif linea == "parar" or linea == "para" then
                     modoActual = "esperar"
                     print(">> Androide detenido.")
+                elseif linea == "seguir" then
+                    modoActual = "seguir"
+                    print(">> Reanudando seguimiento.")
                 end
             end
         end
@@ -83,8 +82,8 @@ local function main()
     parallel.waitForAll(leerConsola, function()
         while true do
             verificarCombate()
-            if modoActual == "seguir" or modoActual == "escolta" then
-                seguirObjetivo(objetivoActual)
+            if modoActual == "seguir" then
+                seguirObjetivoSeguro(objetivoNombre)
             elseif modoActual == "vehiculo" then
                 gestionarVehiculo()
             end
