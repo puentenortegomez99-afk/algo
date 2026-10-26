@@ -1,11 +1,10 @@
 -- escolta.lua
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
--- Androide de Combate, Escolta, Autofollow y Control de Vehiculos
 
 local android = _G.android
 
 local PAUSA = 0.5
-local modoActual = "esperar" -- "seguir", "escolta", "vehiculo"
+local modoActual = "esperar"
 local objetivoNombre = nil
 
 local function esperarTarea()
@@ -19,7 +18,6 @@ local function esperarTarea()
     end
 end
 
--- 1. Sistema de combate y equipamiento
 local function verificarCombate()
     for i = 0, 8 do
         local ok, info = pcall(android.getSlotInfo, i)
@@ -30,7 +28,6 @@ local function verificarCombate()
     end
 end
 
--- 2. Seguimiento automatico al jugador
 local function seguirJugador(nombreJugador)
     local jugador = android.getPlayer(nombreJugador)
     if jugador and jugador.posX then
@@ -42,47 +39,19 @@ local function seguirJugador(nombreJugador)
     end
 end
 
--- 3. Gestion de vehiculos (Aviones / Immersive Aircraft / Man of Many Planes)
 local function gestionarVehiculo()
     local vehiculos = android.getEntities("vehicle") or android.getEntities("plane")
     if vehiculos and #vehiculos > 0 then
         local v = vehiculos[1]
         pcall(android.moveTo, math.floor(v.x), math.floor(v.y), math.floor(v.z))
         pcall(android.useBlock, math.floor(v.x), math.floor(v.y), math.floor(v.z))
-        print("Intentando embarcar en el vehiculo...")
-    end
-end
-
--- 4. Escucha de comandos por chat local
-local function escucharComandos()
-    local event, player, message = os.pullEvent("chat")
-    if event == "chat" and message then
-        message = string.lower(message)
-        
-        if string.find(message, "ven") or string.find(message, "follow") then
-            objetivoNombre = player
-            modoActual = "seguir"
-            print("Modo Autofollow activado para: " .. player)
-            
-        elseif string.find(message, "sube") or string.find(message, "mount") then
-            modoActual = "vehiculo"
-            print("Modo Automount en avion activado.")
-            
-        elseif string.find(message, "para") or string.find(message, "stay") then
-            modoActual = "esperar"
-            print("Androide en posicion de espera.")
-            
-        elseif string.find(message, "escolta") then
-            objetivoNombre = player
-            modoActual = "escolta"
-            print("Modo Escolta defensiva activado para: " .. player)
-        end
+        print("Intentando embarcar no vehiculo...")
     end
 end
 
 local function main()
     print("=== ANDROIDE TACTICO INICIADO ===")
-    print("Usa en el chat: 'ven', 'sube', 'escolta' o 'para'.")
+    print("Usa no chat: 'ven', 'sube', 'escolta' ou 'para'.")
 
     while true do
         verificarCombate()
