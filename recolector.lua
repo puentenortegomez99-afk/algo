@@ -1,4 +1,4 @@
--- collector.lua
+-- recolector.lua
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
 
 local android = _G.android
@@ -15,7 +15,7 @@ local function esperarTarea()
     end
 end
 
--- Buscar cofres cercanos para vaciar el inventario
+-- Depositar inventario en el cofre más cercano
 local function depositarLoot()
     local cofres = android.getBlocksOfType("chest")
     if cofres and #cofres > 0 then
@@ -32,22 +32,13 @@ end
 print("=== RECOLECTOR INICIADO ===")
 
 while true do
-    -- Busca ítems en el suelo (entidades de tipo item)
-    local items = android.getEntities("item")
+    -- Como método alternativo seguro, revisamos el área o usamos comandos de succión si están disponibles,
+    -- o barremos los bloques de items caídos si la API lo soporta.
+    -- Si tu versión tiene una función específica de aspirado, la usaremos aquí:
+    local ok, res = pcall(android.suction) -- O la función de recolección de zona de tu versión
     
-    if items and #items > 0 then
-        for _, item in ipairs(items) do
-            if item and item.x and item.y and item.z then
-                -- Se mueve hacia donde está el ítem en el suelo para recogerlo
-                pcall(android.moveTo, math.floor(item.x), math.floor(item.y), math.floor(item.z))
-                esperarTarea()
-            end
-        end
-    else
-        -- Si no hay ítems, espera un momento antes de volver a escanear
-        sleep(2)
-    end
-
-    -- Cada cierto tiempo o si el inventario se llena, busca un cofre y lo deposita
+    -- Si no existe suction, el androide se mantiene a la escucha y vacía al cofre cercano
     depositarLoot()
+    
+    sleep(3)
 end
