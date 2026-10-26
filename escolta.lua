@@ -1,12 +1,17 @@
 -- escolta.lua
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
--- Androide de Combate, Escolta, Autofollow y Control de Vehiculos
+-- Androide Táctico Multiuso: Multi-owner, Escolta de NPCs/Androids/Jugadores y Combate
 
 local android = _G.android
-
 local PAUSA = 0.5
-local modoActual = "esperar" -- "seguir", "escolta", "vehiculo", "esperar"
-local objetivoNombre = nil
+
+-- Lista de owners permitidos (con chapelmussel0 por defecto)
+local owners = {
+    ["chapelmussel0"] = true
+}
+
+local modoActual = "seguir" -- "seguir", "escolta", "vehiculo", "esperar"
+local objetivoActual = "chapelmussel0"
 
 local function esperarTarea()
     sleep(PAUSA)
@@ -19,33 +24,50 @@ local function esperarTarea()
     end
 end
 
--- 1. Sistema de combate y equipamiento defensivo
+-- Sistema de combate defensivo automatico
 local function verificarCombate()
     for i = 0, 8 do
         local ok, info = pcall(android.getSlotInfo, i)
-        if ok and type(info) == "string" and string.find(string.lower(info), "sword") then
+        if ok and type(info) == "string" and (string.find(string.lower(info), "sword") or string.find(string.lower(info), "axe")) then
             pcall(android.equipSlot, i)
             break
         end
     end
 end
 
--- 2. Sistema de seguimiento automatico al jugador (Autofollow)
-local function seguirJugador(nombreJugador)
-    local jugador = android.getPlayer(nombreJugador)
+-- Sistema inteligente para seguir jugadores, NPCs u otros androides
+local function seguirObjetivo(nombre)
+    -- 1. Intentar buscar si es un jugador conectado
+    local jugador = android.getPlayer(nombre)
     if jugador and jugador.posX then
         local distancia = math.abs(jugador.posX - android.getSelf().posX) + math.abs(jugador.posZ - android.getSelf().posZ)
-        if distancia > 3 then
+        if distancia > 2 then
             pcall(android.moveTo, math.floor(jugador.posX), math.floor(jugador.posY), math.floor(jugador.posZ))
             esperarTarea()
+        end
+        return
+    end
+
+    -- 2. Si no es jugador, buscar entidades (NPCs u otros androides) de forma segura
+    local ok, entidades = pcall(function() return android.getEntities() end)
+    if ok and entidades then
+        for _, ent in ipairs(entidades) do
+            if ent and (ent.name == nombre or ent.type == nombre or ent.id == nombre) and ent.x then
+                local distancia = math.abs(ent.x - android.getSelf().posX) + math.abs(ent.z - android.getSelf().posZ)
+                if distancia > 2 then
+                    pcall(android.moveTo, math.floor(ent.x), math.floor(ent.y), math.floor(ent.z))
+                    esperarTarea()
+                end
+                return
+            end
         end
     end
 end
 
--- 3. Gestion de vehiculos (Immersive Aircraft / Man of Many Planes)
+-- Gestion de vehiculos (Immersive Aircraft / Man of Many Planes)
 local function gestionarVehiculo()
-    local vehiculos = android.getEntities("vehicle") or android.getEntities("plane")
-    if vehiculos and #vehiculos > 0 then
+    local ok, vehiculos = pcall(function() return android.getEntities("vehicle") or android.getEntities("plane") end)
+    if ok and vehiculos and #vehiculos > 0 then
         local v = vehiculos[1]
         pcall(android.moveTo, math.floor(v.x), math.floor(v.y), math.floor(v.z))
         pcall(android.useBlock, math.floor(v.x), math.floor(v.y), math.floor(v.z))
@@ -53,54 +75,59 @@ local function gestionarVehiculo()
     end
 end
 
--- 4. Bucle principal de control y comandos
 local function main()
     print("=== ANDROIDE TACTICO INICIADO ===")
-    print("Comandos de chat disponibles:")
-    print(" - 'ven' o 'follow': Te sigue.")
-    print(" - 'escolta': Modo escolta defensiva.")
-    print(" - 'sube' o 'mount': Entra al avion/vehiculo.")
-    print(" - 'para' o 'stay': Se detiene.")
+    print("Owner principal activo: chapelmussel0")
+    print("Comandos disponibles en esta terminal:")
+    print(" - seguir [nombre]  -> Sigue a un jugador, NPC o androide.")
+    print(" - escolta [nombre] -> Modo escolta defensiva.")
+    print(" - vehiculo         -> Sube al avion/vehiculo.")
+    print(" - parar            -> Detiene al androide.")
+    print(" - addowner [nombre]-> Añade un nuevo owner autorizado.")
 
-    -- Hilo para escuchar el chat de forma simultanea
-    local function escucharChat()
+    -- Hilo de comandos por texto en la consola (100% fiable)
+    local function leerConsola()
         while true do
-            local event, player, message = os.pullEvent("chat")
-            if event == "chat" and message then
-                message = string.lower(message)
+            local linea = io.read()
+            if linea then
+                linea = string.lower(linea)
                 
-                if string.find(message, "ven") or string.find(message, "follow") then
-                    objetivoNombre = player
+                if string.find(linea, "seguir ") then
+                    objetivoActual = string.sub(linea, 8)
                     modoActual = "seguir"
-                    print("Modo Autofollow activado para: " .. player)
+                    print(">> Siguiendo a: " .. objetivoActual)
                     
-                elseif string.find(message, "sube") or string.find(message, "mount") then
-                    modoActual = "vehiculo"
-                    print("Modo Automount en avion activado.")
-                    
-                elseif string.find(message, "para") or string.find(message, "stay") then
-                    modoActual = "esperar"
-                    objetivoNombre = nil
-                    print("Androide detenido en posicion de espera.")
-                    
-                elseif string.find(message, "escolta") then
-                    objetivoNombre = player
+                elseif string.find(linea, "escolta ") then
+                    objetivoActual = string.sub(linea, 9)
                     modoActual = "escolta"
-                    print("Modo Escolta defensiva activado para: " .. player)
+                    print(">> Escoltando a: " .. objetivoActual)
+                    
+                elseif linea == "vehiculo" or linea == "sube" then
+                    modoActual = "vehiculo"
+                    print(">> Buscando vehiculo para embarcar...")
+                    
+                elseif linea == "parar" or linea == "para" then
+                    modoActual = "esperar"
+                    print(">> Androide detenido en posicion.")
+                    
+                elseif string.find(linea, "addowner ") then
+                    local nuevoOwner = string.sub(linea, 10)
+                    owners[nuevoOwner] = true
+                    print(">> Nuevo owner autorizado: " .. nuevoOwner)
+                else
+                    print(">> Comando no reconocido.")
                 end
             end
         end
     end
 
-    -- Lanzamos la escucha de chat en paralelo para que no bloquee el movimiento
-    parallel.waitForAll(escucharChat, function()
+    -- Ejecucion paralela entre la consola y las tareas del androide
+    parallel.waitForAll(leerConsola, function()
         while true do
             verificarCombate()
 
-            if modoActual == "seguir" and objetivoNombre then
-                seguirJugador(objetivoNombre)
-            elseif modoActual == "escolta" and objetivoNombre then
-                seguirJugador(objetivoNombre)
+            if modoActual == "seguir" or modoActual == "escolta" then
+                seguirObjetivo(objetivoActual)
             elseif modoActual == "vehiculo" then
                 gestionarVehiculo()
             end
