@@ -102,7 +102,7 @@ local function verificarCombateYDefensa()
 end
 
 -- 3. SEGUIMIENTO INTELIGENTE DEL DUENO
-local function seguirDueño()
+local function seguirDueno()
     local jugador = android.getClosestPlayer()
     if jugador and jugador.name and owners[string.lower(jugador.name)] then
         if jugador.posX and jugador.posZ then
@@ -194,7 +194,7 @@ local function main()
             else
                 verificarCombateYDefensa()
                 if modoActual == "seguir" then
-                    seguirDueño()
+                    seguirdueno()
                 end
             end
             sleep(0.5)
