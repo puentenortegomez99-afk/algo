@@ -1,12 +1,10 @@
 -- granja.lua
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
--- Granjero por escaneo de coordenadas directo
 
 local android = _G.android
 local PAUSA = 0.5
 local COMBUSTIBLE_MINIMO = 200
 
--- Coordenadas de tu cofre para vaciar recursos
 local cofreX, cofreY, cofreZ = 2259, 63, -802
 
 local function esperarTarea()
@@ -20,7 +18,6 @@ local function esperarTarea()
     end
 end
 
--- Autorecarga con redstone oficial
 local function comprobarYRecargar()
     local combustibleActual = android.fuelLevel()
     if combustibleActual and combustibleActual >= COMBUSTIBLE_MINIMO then
@@ -42,7 +39,6 @@ local function comprobarYRecargar()
     return recargaExitosa
 end
 
--- Equipar semillas o patatas para plantar
 local function equiparSemilla()
     for i = 0, 8 do
         local ok, info = pcall(android.getSlotInfo, i)
@@ -57,7 +53,6 @@ local function equiparSemilla()
     return false
 end
 
--- Guardar inventario en el cofre
 local function guardarEnCofre()
     pcall(android.moveTo, cofreX, cofreY, cofreZ)
     esperarTarea()
@@ -74,7 +69,6 @@ local function guardarEnCofre()
     end
 end
 
--- Bucle principal barriendo el area alrededor del androide
 local function main()
     print("=== GRANJERO POR ESCANEO ACTIVO ===")
     pcall(android.changeFace, "happy")
@@ -90,20 +84,17 @@ local function main()
                 local cz = math.floor(selfPos.posZ)
                 local hizoAlgo = false
 
-                -- Escanear un radio de 4 bloques alrededor del androide
                 for dx = -4, 4 do
                     for dz = -4, 4 do
                         local tx = cx + dx
                         local tz = cz + dz
                         
-                        -- Intentamos romper y replantar en la coordenada de cultivo (misma altura o y-1)
-                        -- Usamos breakBlock de la API oficial (con limite de 100 bloques de distancia)
                         local okBreak = pcall(android.breakBlock, tx, cy, tz)
                         if okBreak then
                             esperarTarea()
-                            pcall(android.pickup)[cite: 3]
+                            pcall(android.pickup)
                             equiparSemilla()
-                            pcall(android.useBlock, tx, cy, tz)[cite: 3]
+                            pcall(android.useBlock, tx, cy, tz)
                             esperarTarea()
                             hizoAlgo = true
                         end
