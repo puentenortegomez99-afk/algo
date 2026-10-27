@@ -1,7 +1,12 @@
--- miner.lua
+-- miner.lua (ACTUALIZADO con transmisión de coordenadas)
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
 
 local android = _G.android
+
+-- CONFIGURACIÓN DE RED
+local CANAL_RADIO = 1234
+local modem = peripheral.find("wirelessModem") or peripheral.find("modem")
+if modem then modem.open(CANAL_RADIO) end
 
 local LONGITUD = 100
 local PAUSA = 0.1
@@ -146,6 +151,11 @@ local function main()
         local ok, res = pcall(android.moveTo, x, Y1, Z1)
         if not ok then return end
         esperarTarea()
+
+        -- TRANSMITIR POSICIÓN ACTUAL PARA LA TURTLE SEGUIDORA
+        if modem then
+            modem.transmit(CANAL_RADIO, CANAL_RADIO, { x = x, y = Y1, z = Z1 })
+        end
 
         contadorPasos = contadorPasos + 1
         if contadorPasos >= FRECUENCIA_ANTORCHAS then
