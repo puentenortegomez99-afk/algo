@@ -1,12 +1,12 @@
 -- granja.lua
 -- CC:Androids 1.3.0 | Minecraft 1.20.1
--- Granjero Avanzado: Cosecha, Replantado Inteligente por Equipamiento y Cofres
+-- Granjero por escaneo de coordenadas directo
 
 local android = _G.android
 local PAUSA = 0.5
 local COMBUSTIBLE_MINIMO = 200
 
--- Coordenadas de tu cofre (ajustalas si es necesario)
+-- Coordenadas de tu cofre para vaciar recursos
 local cofreX, cofreY, cofreZ = 2259, 63, -802
 
 local function esperarTarea()
@@ -20,7 +20,7 @@ local function esperarTarea()
     end
 end
 
--- Autorecarga robusta con redstone
+-- Autorecarga con redstone oficial
 local function comprobarYRecargar()
     local combustibleActual = android.fuelLevel()
     if combustibleActual and combustibleActual >= COMBUSTIBLE_MINIMO then
@@ -42,13 +42,13 @@ local function comprobarYRecargar()
     return recargaExitosa
 end
 
--- Buscar semillas o papas en el inventario y equiparlas para plantar
-local function equiparSemillaOPlanta()
+-- Equipar semillas o patatas para plantar
+local function equiparSemilla()
     for i = 0, 8 do
         local ok, info = pcall(android.getSlotInfo, i)
         if ok and type(info) == "string" then
-            local itemLower = string.lower(info)
-            if string.find(itemLower, "seed") or string.find(itemLower, "potato") or string.find(itemLower, "carrot") then
+            local infL = string.lower(info)
+            if string.find(infL, "seed") or string.find(infL, "potato") or string.find(infL, "carrot") then
                 pcall(android.equipSlot, i)
                 return true
             end
@@ -57,15 +57,15 @@ local function equiparSemillaOPlanta()
     return false
 end
 
--- Organizar y guardar en el cofre
-local function organizarYGuardarEnCofre()
+-- Guardar inventario en el cofre
+local function guardarEnCofre()
     pcall(android.moveTo, cofreX, cofreY, cofreZ)
     esperarTarea()
 
     for slot = 0, 8 do
         local okInfo, info = pcall(android.getSlotInfo, slot)
         if okInfo and type(info) == "string" then
-            pcall(android.equipSlot, i)
+            pcall(android.equipSlot, slot)
             for cSlot = 0, 26 do
                 local okStore = pcall(android.storeHeldItemInContainer, cofreX, cofreY, cofreZ, cSlot)
                 if okStore then break end
@@ -74,51 +74,49 @@ local function organizarYGuardarEnCofre()
     end
 end
 
--- Bucle principal de cultivo
+-- Bucle principal barriendo el area alrededor del androide
 local function main()
-    print("=== GRANJERO INTELIGENTE ACTIVO ===")
+    print("=== GRANJERO POR ESCANEO ACTIVO ===")
     pcall(android.changeFace, "happy")
 
     while true do
         if not comprobarYRecargar() then
             sleep(5)
         else
-            local cosechoAlgo = false
-            
-            -- Lista de cultivos a buscar
-            local tiposCultivos = {"minecraft:wheat", "minecraft:potatoes"}
+            local selfPos = android.getSelf()
+            if selfPos and selfPos.posX then
+                local cx = math.floor(selfPos.posX)
+                local cy = math.floor(selfPos.posY)
+                local cz = math.floor(selfPos.posZ)
+                local hizoAlgo = false
 
-            for _, tipo in ipairs(tiposCultivos) do
-                local okBloques, bloques = pcall(function() return android.getBlocksOfType(tipo) end)
-                
-                if okBloques and type(bloques) == "table" and #bloques > 0 then
-                    for _, b in ipairs(bloques) do
-                        if b.x and b.y and b.z then
-                            -- 1. Romper cultivo maduro
-                            pcall(android.breakBlock, b.x, b.y, b.z)
+                -- Escanear un radio de 4 bloques alrededor del androide
+                for dx = -4, 4 do
+                    for dz = -4, 4 do
+                        local tx = cx + dx
+                        local tz = cz + dz
+                        
+                        -- Intentamos romper y replantar en la coordenada de cultivo (misma altura o y-1)
+                        -- Usamos breakBlock de la API oficial (con limite de 100 bloques de distancia)
+                        local okBreak = pcall(android.breakBlock, tx, cy, tz)
+                        if okBreak then
                             esperarTarea()
-                            
-                            -- 2. Recoger del suelo
-                            pcall(android.pickup)
-                            
-                            -- 3. Equipar semilla/patata y replantar usando useBlock
-                            equiparSemillaOPlanta()
-                            pcall(android.useBlock, b.x, b.y, b.z)
+                            pcall(android.pickup)[cite: 3]
+                            equiparSemilla()
+                            pcall(android.useBlock, tx, cy, tz)[cite: 3]
                             esperarTarea()
-                            
-                            cosechoAlgo = true
+                            hizoAlgo = true
                         end
                     end
                 end
-            end
 
-            -- Si no hay nada que cosechar, organiza y guarda en el cofre
-            if not cosechoAlgo then
-                organizarYGuardarEnCofre()
+                if not hizoAlgo then
+                    guardarEnCofre()
+                end
             end
         end
 
-        sleep(2)
+        sleep(3)
     end
 end
 
